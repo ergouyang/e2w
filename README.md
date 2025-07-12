@@ -1,6 +1,6 @@
 # Excel到Word模板转换工具
 
-一个功能强大的Python GUI应用程序，用于将Excel数据批量填充到Word模板中，支持文本替换、图片插入、格式保持等功能。
+一个Python GUI应用程序，用于将Excel数据批量填充到Word模板中，支持文本替换、图片插入、格式保持等功能。
 
 ## ✨ 功能特色
 
@@ -24,7 +24,7 @@
 ### 从源码运行
 ```bash
 # 克隆项目
-git clone [项目地址]
+git clone (https://github.com/ergouyang/e2w.git)
 
 # 安装依赖
 pip install -r requirements.txt
@@ -100,7 +100,6 @@ python build_exe.py
 
 - **作者**：yf
 - **年份**：2025
-- **联系方式**：[在此添加您的联系方式]
 
 ## 🌟 致谢
 
