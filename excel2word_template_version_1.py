@@ -220,16 +220,18 @@ class Excel2WordConverter:
                   command=self.show_image_debug_info).grid(row=0, column=3, padx=(0, 5))
         
         # 图片映射表格
-        self.image_tree = ttk.Treeview(image_content, columns=("folder", "mapping_rule", "placeholder"), 
+        self.image_tree = ttk.Treeview(image_content, columns=("folder", "mapping_rule", "placeholder", "size"), 
                                       show="tree headings", height=15)
         self.image_tree.heading("#0", text="序号")
         self.image_tree.heading("folder", text="图片文件夹")
         self.image_tree.heading("mapping_rule", text="映射规则")
         self.image_tree.heading("placeholder", text="Word占位符")
+        self.image_tree.heading("size", text="尺寸")
         self.image_tree.column("#0", width=50)
         self.image_tree.column("folder", width=200)
         self.image_tree.column("mapping_rule", width=200)
         self.image_tree.column("placeholder", width=150)
+        self.image_tree.column("size", width=100)
         self.image_tree.grid(row=2, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
         # 绑定双击编辑事件
@@ -336,37 +338,9 @@ class Excel2WordConverter:
         advanced_settings_frame = ttk.LabelFrame(settings_content, text="高级设置", padding="10")
         advanced_settings_frame.grid(row=0, column=1, sticky=(tk.W, tk.E, tk.N, tk.S), padx=(5, 0))
         
-        # 图片设置
-        image_settings_frame = ttk.LabelFrame(advanced_settings_frame, text="图片设置", padding="5")
-        image_settings_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
-        
-        self.use_cm_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(image_settings_frame, text="图片宽度使用厘米", 
-                       variable=self.use_cm_var).grid(row=0, column=0, sticky=tk.W, pady=2)
-        
-        width_frame = ttk.Frame(image_settings_frame)
-        width_frame.grid(row=1, column=0, sticky=tk.W, pady=2)
-        
-        ttk.Label(width_frame, text="图片宽度:").grid(row=0, column=0, sticky=tk.W)
-        self.image_width_var = tk.StringVar(value="9.8")
-        width_entry = ttk.Entry(width_frame, textvariable=self.image_width_var, width=8)
-        width_entry.grid(row=0, column=1, padx=(5, 0))
-        
-        self.unit_label = ttk.Label(width_frame, text="厘米")
-        self.unit_label.grid(row=0, column=2, padx=(5, 0))
-        
-        # 绑定单位切换事件
-        def on_unit_change():
-            if self.use_cm_var.get():
-                self.unit_label.config(text="厘米")
-            else:
-                self.unit_label.config(text="英寸")
-        
-        self.use_cm_var.trace('w', lambda *args: on_unit_change())
-        
         # 数字格式化设置
         number_frame = ttk.LabelFrame(advanced_settings_frame, text="数字格式化", padding="5")
-        number_frame.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
+        number_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
         
         format_frame = ttk.Frame(number_frame)
         format_frame.grid(row=0, column=0, sticky=tk.W, pady=2)
@@ -926,7 +900,10 @@ class Excel2WordConverter:
         new_mapping = {
             "folder": "",
             "mapping_rule": "",
-            "placeholder": ""
+            "placeholder": "",
+            "width": "9.8",  # 默认宽度
+            "height": "",  # 空表示按比例缩放
+            "use_cm": True  # 默认使用厘米
         }
         self.image_mapping_data.append(new_mapping)
         self.update_image_tree()
@@ -962,8 +939,19 @@ class Excel2WordConverter:
             mapping_display = data["mapping_rule"] if data["mapping_rule"] else "未设置"
             placeholder_display = data["placeholder"] if data["placeholder"] else "未选择"
             
+            # 添加宽高显示
+            width = data.get("width", "9.8")
+            height = data.get("height", "")
+            use_cm = data.get("use_cm", True)
+            unit = "cm" if use_cm else "in"
+            
+            if height:
+                size_display = f"{width}×{height}{unit}"
+            else:
+                size_display = f"{width}{unit}(按比例)"
+            
             self.image_tree.insert("", "end", text=str(i+1), 
-                                  values=(folder_display, mapping_display, placeholder_display))
+                                  values=(folder_display, mapping_display, placeholder_display, size_display))
     
     def edit_image_mapping(self, event):
         """编辑图片映射关系"""
@@ -978,7 +966,7 @@ class Excel2WordConverter:
         # 创建编辑对话框
         dialog = tk.Toplevel(self.root)
         dialog.title("编辑图片映射")
-        dialog.geometry("500x400")
+        dialog.geometry("550x600")
         dialog.transient(self.root)
         dialog.grab_set()
         
@@ -1058,6 +1046,48 @@ class Excel2WordConverter:
         # 添加占位符选项
         placeholder_combo['values'] = [""] + self.placeholders
         
+        # 图片尺寸设置
+        size_frame = ttk.LabelFrame(dialog, text="图片尺寸设置", padding="5")
+        size_frame.grid(row=3, column=0, columnspan=2, sticky=(tk.W, tk.E), padx=10, pady=10)
+        
+        # 单位选择
+        unit_frame = ttk.Frame(size_frame)
+        unit_frame.grid(row=0, column=0, columnspan=2, sticky=tk.W, pady=2)
+        
+        use_cm_var = tk.BooleanVar(value=current_data.get("use_cm", True))
+        ttk.Checkbutton(unit_frame, text="使用厘米", variable=use_cm_var).grid(row=0, column=0, sticky=tk.W)
+        
+        unit_label = ttk.Label(unit_frame, text="厘米" if use_cm_var.get() else "英寸")
+        unit_label.grid(row=0, column=1, padx=(10, 0))
+        
+        # 宽度设置
+        width_frame = ttk.Frame(size_frame)
+        width_frame.grid(row=1, column=0, sticky=tk.W, pady=2)
+        
+        ttk.Label(width_frame, text="宽度:").grid(row=0, column=0, sticky=tk.W)
+        width_var = tk.StringVar(value=current_data.get("width", "9.8"))
+        width_entry = ttk.Entry(width_frame, textvariable=width_var, width=8)
+        width_entry.grid(row=0, column=1, padx=(5, 0))
+        
+        # 高度设置
+        height_frame = ttk.Frame(size_frame)
+        height_frame.grid(row=1, column=1, sticky=tk.W, pady=2, padx=(20, 0))
+        
+        ttk.Label(height_frame, text="高度:").grid(row=0, column=0, sticky=tk.W)
+        height_var = tk.StringVar(value=current_data.get("height", ""))
+        height_entry = ttk.Entry(height_frame, textvariable=height_var, width=8)
+        height_entry.grid(row=0, column=1, padx=(5, 0))
+        
+        # 高度说明
+        ttk.Label(size_frame, text="提示：高度为空时将按比例缩放", 
+                 font=("Arial", 9), foreground="gray").grid(row=2, column=0, columnspan=2, sticky=tk.W, pady=2)
+        
+        # 绑定单位切换事件
+        def on_unit_change():
+            unit_label.config(text="厘米" if use_cm_var.get() else "英寸")
+        
+        use_cm_var.trace('w', lambda *args: on_unit_change())
+        
         # 说明文本
         help_text = """映射规则说明：
 1. 固定图片名：所有数据行都使用同一张图片
@@ -1066,22 +1096,31 @@ class Excel2WordConverter:
 - 如字段值为"apple"，则查找"apple.jpg"或"apple.png"等
 3. 根据行号：使用行号作为图片名
 - 第1行数据使用"1.jpg"，第2行使用"2.jpg"等
+
+尺寸设置：
+- 宽度：必填，设置图片插入时的宽度
+- 高度：可选，为空时按比例缩放
+- 单位：可选择厘米或英寸
+
 图片格式支持：.jpg, .jpeg, .png, .bmp, .gif
 程序会自动尝试不同的文件扩展名进行匹配
         """
         
         help_label = ttk.Label(dialog, text=help_text, justify=tk.LEFT, 
-                              font=("Arial", 9), wraplength=450)
-        help_label.grid(row=3, column=0, columnspan=2, sticky=(tk.W, tk.E), padx=10, pady=10)
+                              font=("Arial", 9), wraplength=500)
+        help_label.grid(row=4, column=0, columnspan=2, sticky=(tk.W, tk.E), padx=10, pady=10)
         
         # 按钮
         btn_frame = ttk.Frame(dialog)
-        btn_frame.grid(row=4, column=0, columnspan=2, pady=10)
+        btn_frame.grid(row=5, column=0, columnspan=2, pady=10)
         
         def save_mapping():
             new_folder = folder_var.get()
             new_mapping = mapping_var.get()
             new_placeholder = placeholder_var.get()
+            new_width = width_var.get()
+            new_height = height_var.get()
+            new_use_cm = use_cm_var.get()
             
             if not new_folder:
                 messagebox.showwarning("警告", "请选择图片文件夹！")
@@ -1095,9 +1134,37 @@ class Excel2WordConverter:
                 messagebox.showwarning("警告", "请选择Word占位符！")
                 return
             
+            if not new_width:
+                messagebox.showwarning("警告", "请设置图片宽度！")
+                return
+            
+            # 验证宽度是否为有效数字
+            try:
+                width_value = float(new_width)
+                if width_value <= 0:
+                    messagebox.showwarning("警告", "图片宽度必须大于0！")
+                    return
+            except ValueError:
+                messagebox.showwarning("警告", "图片宽度必须是有效数字！")
+                return
+            
+            # 验证高度（如果输入了）
+            if new_height:
+                try:
+                    height_value = float(new_height)
+                    if height_value <= 0:
+                        messagebox.showwarning("警告", "图片高度必须大于0！")
+                        return
+                except ValueError:
+                    messagebox.showwarning("警告", "图片高度必须是有效数字！")
+                    return
+            
             self.image_mapping_data[item_index]["folder"] = new_folder
             self.image_mapping_data[item_index]["mapping_rule"] = new_mapping
             self.image_mapping_data[item_index]["placeholder"] = new_placeholder
+            self.image_mapping_data[item_index]["width"] = new_width
+            self.image_mapping_data[item_index]["height"] = new_height
+            self.image_mapping_data[item_index]["use_cm"] = new_use_cm
             self.update_image_tree()
             dialog.destroy()
         
@@ -1144,6 +1211,17 @@ class Excel2WordConverter:
                 debug_info += f"  占位符: {mapping['placeholder']}\n"
                 debug_info += f"  映射规则: {mapping['mapping_rule']}\n"
                 debug_info += f"  图片文件夹: {mapping['folder']}\n"
+                
+                # 显示尺寸设置
+                width = mapping.get("width", "9.8")
+                height = mapping.get("height", "")
+                use_cm = mapping.get("use_cm", True)
+                unit = "cm" if use_cm else "in"
+                
+                if height:
+                    debug_info += f"  图片尺寸: {width}×{height}{unit}\n"
+                else:
+                    debug_info += f"  图片尺寸: {width}{unit}(按比例)\n"
                 
                 # 检查文件夹是否存在
                 if mapping['folder']:
@@ -1214,14 +1292,8 @@ class Excel2WordConverter:
         
         # 显示图片设置
         debug_info += "=== 图片设置 ===\n"
-        try:
-            image_width = float(self.image_width_var.get())
-        except ValueError:
-            image_width = 9.8
-        
-        use_cm = self.use_cm_var.get()
-        unit_text = "厘米" if use_cm else "英寸"
-        debug_info += f"图片宽度: {image_width} {unit_text}\n"
+        debug_info += "图片尺寸设置：每个图片映射都有独立的尺寸设置\n"
+        debug_info += "新建映射的默认值：9.8厘米宽度，高度按比例缩放\n"
         
         debug_info += "\n"
         
@@ -1287,7 +1359,7 @@ class Excel2WordConverter:
             debug_info += "  • 分节符保持（保留原文档的分节符和分页符结构）\n"
             debug_info += "  • 页眉页脚（保持各文档的页眉、页脚、首页格式等）\n"
             debug_info += "  • 表格格式（表格样式、行高、列宽、单元格格式等完全保留）\n"
-            debug_info += "  • 图片内容（所有图片及其格式、位置完全保持）\n"
+            debug_info += "  • 图片内容（所有图片及其格式、位置完全保持，支持独立尺寸设置）\n"
             debug_info += "  • 文档属性（保留文档标题、作者等元数据信息）\n"
             debug_info += "  • 样式定义（保留文档中的自定义样式定义）\n"
             debug_info += "  • 复杂结构（支持嵌套表格、文本框、形状等）\n"
@@ -1478,7 +1550,7 @@ class Excel2WordConverter:
         self.log_output("没有匹配的映射规则")
         return None
     
-    def insert_image_into_paragraph(self, paragraph, image_path: str, width_value: float = 9.8, use_cm: bool = True):
+    def insert_image_into_paragraph(self, paragraph, image_path: str, width_value: float = 9.8, height_value: float = None, use_cm: bool = True):
         """在段落中插入图片"""
         try:
             # 检查图片文件是否存在
@@ -1497,7 +1569,10 @@ class Excel2WordConverter:
             #     return False
             
             unit_text = "厘米" if use_cm else "英寸"
-            self.log_output(f"开始插入图片: {image_path} (大小: {file_size} bytes, 宽度: {width_value}{unit_text})")
+            if height_value:
+                self.log_output(f"开始插入图片: {image_path} (大小: {file_size} bytes, 尺寸: {width_value}×{height_value}{unit_text})")
+            else:
+                self.log_output(f"开始插入图片: {image_path} (大小: {file_size} bytes, 宽度: {width_value}{unit_text}(按比例))")
             
             # 清除段落原有内容
             paragraph.clear()
@@ -1505,11 +1580,21 @@ class Excel2WordConverter:
             # 添加新的运行并插入图片
             run = paragraph.add_run()
             
-            # 根据单位选择设置图片宽度
+            # 根据单位和尺寸设置图片
             if use_cm:
-                run.add_picture(image_path, width=Cm(width_value))
+                if height_value:
+                    # 同时设置宽度和高度
+                    run.add_picture(image_path, width=Cm(width_value), height=Cm(height_value))
+                else:
+                    # 只设置宽度，高度按比例缩放
+                    run.add_picture(image_path, width=Cm(width_value))
             else:
-                run.add_picture(image_path, width=Inches(width_value))
+                if height_value:
+                    # 同时设置宽度和高度
+                    run.add_picture(image_path, width=Inches(width_value), height=Inches(height_value))
+                else:
+                    # 只设置宽度，高度按比例缩放
+                    run.add_picture(image_path, width=Inches(width_value))
             
             # 设置段落居中对齐
             paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -2763,20 +2848,27 @@ class Excel2WordConverter:
                     self.log_output(f"图片文件存在，开始替换占位符")
                     image_replaced = False
                     
-                    # 获取图片宽度设置
+                    # 获取图片尺寸设置
                     try:
-                        image_width = float(self.image_width_var.get())
+                        image_width = float(img_mapping.get("width", "9.8"))
                     except ValueError:
-                        image_width = 5.0  # 默认宽度
+                        image_width = 9.8  # 默认宽度
                         self.log_output(f"图片宽度设置无效，使用默认值: {image_width}")
                     
-                    use_cm = self.use_cm_var.get()
+                    try:
+                        height_str = img_mapping.get("height", "")
+                        image_height = float(height_str) if height_str else None
+                    except ValueError:
+                        image_height = None  # 按比例缩放
+                        self.log_output(f"图片高度设置无效，使用按比例缩放")
+                    
+                    use_cm = img_mapping.get("use_cm", True)
                     
                     # 在主文档中查找并替换图片占位符
                     for paragraph in doc.paragraphs:
                         if placeholder in paragraph.text:
                             self.log_output(f"在主文档段落中找到占位符: {placeholder}")
-                            if self.insert_image_into_paragraph(paragraph, image_path, image_width, use_cm):
+                            if self.insert_image_into_paragraph(paragraph, image_path, image_width, image_height, use_cm):
                                 image_replaced = True
                     
                     # 在主文档表格中查找并替换图片占位符
@@ -2787,7 +2879,7 @@ class Excel2WordConverter:
                                 for cell_paragraph in cell.paragraphs:
                                     if placeholder in cell_paragraph.text:
                                         self.log_output(f"在主文档表格中找到占位符: {placeholder}")
-                                        if self.insert_image_into_paragraph(cell_paragraph, image_path, image_width, use_cm):
+                                        if self.insert_image_into_paragraph(cell_paragraph, image_path, image_width, image_height, use_cm):
                                             image_replaced = True
                                 
                                 # 递归处理表格单元格内的嵌套表格
@@ -2797,7 +2889,7 @@ class Excel2WordConverter:
                                             for nested_paragraph in nested_cell.paragraphs:
                                                 if placeholder in nested_paragraph.text:
                                                     self.log_output(f"在嵌套表格中找到占位符: {placeholder}")
-                                                    if self.insert_image_into_paragraph(nested_paragraph, image_path, image_width, use_cm):
+                                                    if self.insert_image_into_paragraph(nested_paragraph, image_path, image_width, image_height, use_cm):
                                                         image_replaced = True
                     
                     # 在页眉和页脚中查找并替换图片占位符
@@ -2807,7 +2899,7 @@ class Excel2WordConverter:
                             for paragraph in section.header.paragraphs:
                                 if placeholder in paragraph.text:
                                     self.log_output(f"在页眉中找到占位符: {placeholder}")
-                                    if self.insert_image_into_paragraph(paragraph, image_path, image_width, use_cm):
+                                    if self.insert_image_into_paragraph(paragraph, image_path, image_width, image_height, use_cm):
                                         image_replaced = True
                         
                         # 处理页脚
@@ -2815,7 +2907,7 @@ class Excel2WordConverter:
                             for paragraph in section.footer.paragraphs:
                                 if placeholder in paragraph.text:
                                     self.log_output(f"在页脚中找到占位符: {placeholder}")
-                                    if self.insert_image_into_paragraph(paragraph, image_path, image_width, use_cm):
+                                    if self.insert_image_into_paragraph(paragraph, image_path, image_width, image_height, use_cm):
                                         image_replaced = True
                     
                     if not image_replaced:
@@ -3527,6 +3619,10 @@ class Excel2WordConverter:
      • 根据字段：根据Excel字段值匹配图片文件名
      • 根据行号：按行号匹配图片（1.jpg, 2.jpg等）
    - Word占位符：选择要替换的图片占位符
+   - 图片尺寸设置（每个映射独立设置）：
+     • 宽度：必填，设置图片插入时的宽度
+     • 高度：可选，为空时按比例缩放
+     • 单位：可选择厘米或英寸
    - 支持格式：jpg, jpeg, png, bmp, gif
 
 5. 预览和生成：
@@ -3550,8 +3646,7 @@ class Excel2WordConverter:
 
 8. 其他选项：
    - 在文件中预览：直接打开预览文档
-   - 图片宽度使用厘米：选择图片宽度单位（厘米或英寸）
-   - 图片宽度：设置插入图片的宽度大小（默认9.8厘米）
+   - 合并导出文档：将生成的多个文档合并为一个文档
 
 9. 数字格式化：
    - 数字格式化：选择数字的显示格式
